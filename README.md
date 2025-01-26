@@ -1,107 +1,160 @@
-# UCS654_Sampling_Assignment
 
-### Introduction
+# Credit Card Fraud Detection
+This project analyzes a credit card fraud dataset using Python
 
-This second programming assignment will require you to write an R
-function that is able to cache potentially time-consuming computations.
-For example, taking the mean of a numeric vector is typically a fast
-operation. However, for a very long vector, it may take too long to
-compute the mean, especially if it has to be computed repeatedly (e.g.
-in a loop). If the contents of a vector are not changing, it may make
-sense to cache the value of the mean so that when we need it again, it
-can be looked up in the cache rather than recomputed. In this
-Programming Assignment you will take advantage of the scoping rules of
-the R language and how they can be manipulated to preserve state inside
-of an R object.
+# Steps
 
-### Example: Caching the Mean of a Vector
+# Step 1: Import Libraries
 
-In this example we introduce the `<<-` operator which can be used to
-assign a value to an object in an environment that is different from the
-current environment. Below are two functions that are used to create a
-special object that stores a numeric vector and caches its mean.
+```
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
+from sklearn.neighbors import KNeighborsClassifier
+from imblearn.over_sampling import SMOTE
+from imblearn.under_sampling import RandomUnderSampler
+import numpy as np
+```
+# Step 2: Load the Dataset
+```
+data = pd.read_csv('Creditcard_data.csv')  
+```
+# Step 3: Initial Exploration of the Dataset
+```
+print(data.head())
+print(data.info())
+```
+data.head(): To display the first 5 rows of the dataset.
 
-The first function, `makeVector` creates a special "vector", which is
-really a list containing a function to
+data.info(): Provides metadata like column names, data types, and non-null counts.
 
-1.  set the value of the vector
-2.  get the value of the vector
-3.  set the value of the mean
-4.  get the value of the mean
+# Step 4: Defining x and y
+```
+X = data.drop("Class", axis=1)
+y = data["Class"]
+```
 
-<!-- -->
+# Step 5: Handle Imbalanced Dataset with SMOTE
+```
+smote = SMOTE(random_state=42)
+X_resampled, y_resampled = smote.fit_resample(X, y)
+```
+SMOTE (Synthetic Minority Oversampling Technique): Balances the dataset by creating synthetic samples for the minority class.
 
-    makeVector <- function(x = numeric()) {
-            m <- NULL
-            set <- function(y) {
-                    x <<- y
-                    m <<- NULL
-            }
-            get <- function() x
-            setmean <- function(mean) m <<- mean
-            getmean <- function() m
-            list(set = set, get = get,
-                 setmean = setmean,
-                 getmean = getmean)
-    }
+x: Independent features.
 
-The following function calculates the mean of the special "vector"
-created with the above function. However, it first checks to see if the
-mean has already been calculated. If so, it `get`s the mean from the
-cache and skips the computation. Otherwise, it calculates the mean of
-the data and sets the value of the mean in the cache via the `setmean`
-function.
+y: Target variable.
 
-    cachemean <- function(x, ...) {
-            m <- x$getmean()
-            if(!is.null(m)) {
-                    message("getting cached data")
-                    return(m)
-            }
-            data <- x$get()
-            m <- mean(data, ...)
-            x$setmean(m)
-            m
-    }
+fit_resample: Applies SMOTE to create x_smote and y_smote, balanced datasets.
 
-### Assignment: Caching the Inverse of a Matrix
+# Step 6: Checking the new balanced data
+'''
+print("Original class distribution:")
+print(y.value_counts())
+print("Resampled class distribution:")
+print(y_resampled.value_counts())
+'''
 
-Matrix inversion is usually a costly computation and there may be some
-benefit to caching the inverse of a matrix rather than computing it
-repeatedly (there are also alternatives to matrix inversion that we will
-not discuss here). Your assignment is to write a pair of functions that
-cache the inverse of a matrix.
+# Step 7: Create Samples
 
-Write the following functions:
+ ```
+sample_size = 1000
+samples = {
+    "Sampling1": X_resampled.sample(n=sample_size, random_state=42),
+    "Sampling2": X_resampled.sample(n=sample_size, random_state=21),
+    "Sampling3": X_resampled.iloc[::len(X_resampled)//sample_size, :],
+    "Sampling4": X_resampled.sample(n=sample_size, random_state=56),
+    "Sampling5": X_resampled.sample(n=sample_size, random_state=99),
+}
 
-1.  `makeCacheMatrix`: This function creates a special "matrix" object
-    that can cache its inverse.
-2.  `cacheSolve`: This function computes the inverse of the special
-    "matrix" returned by `makeCacheMatrix` above. If the inverse has
-    already been calculated (and the matrix has not changed), then
-    `cacheSolve` should retrieve the inverse from the cache.
+sample_datasets = {
+    name: (sample, y_resampled.loc[sample.index])
+    for name, sample in samples.items()
+}
 
-Computing the inverse of a square matrix can be done with the `solve`
-function in R. For example, if `X` is a square invertible matrix, then
-`solve(X)` returns its inverse.
+```
+Multiple sampling techniques are applied to the balanced dataset to extract samples:
+1. Simple Random Sampling: Selects a random subset of the data without replacement.
+2. Stratified Sampling: Ensures that the class distribution is maintained in the sample.
+3. Systematic Sampling: Selects samples based on a fixed interval k.
+4. Cluster Sampling: Divides the dataset into clusters and selects one cluster.
+5. Bootstrapping: Samples data points with replacement.
 
-For this assignment, assume that the matrix supplied is always
-invertible.
+# Step 8: Defining the Models to be used 
+```
+models = {
+    "M1": LogisticRegression(random_state=42),
+    "M2": DecisionTreeClassifier(random_state=42),
+    "M3": RandomForestClassifier(random_state=42),
+    "M4": SVC(random_state=42),
+    "M5": KNeighborsClassifier(),
+}
 
-In order to complete this assignment, you must do the following:
+results = {}
+```
+# Step 9: Creating a result matrix by training and evaluating various models
+```
+for sample_name, (X_sample, y_sample) in sample_datasets.items():
+    print(f"Evaluating for {sample_name}...")
+    X_train, X_test, y_train, y_test = train_test_split(X_sample, y_sample, test_size=0.3, random_state=42)
+    
+    for model_name, model in models.items():
+        model.fit(X_train, y_train)
+        predictions = model.predict(X_test)
+        accuracy = accuracy_score(y_test, predictions)
+        if sample_name not in results:
+            results[sample_name] = {}
+        results[sample_name][model_name] = accuracy
 
-1.  Fork the GitHub repository containing the stub R files at
-    [https://github.com/rdpeng/ProgrammingAssignment2](https://github.com/rdpeng/ProgrammingAssignment2)
-    to create a copy under your own account.
-2.  Clone your forked GitHub repository to your computer so that you can
-    edit the files locally on your own machine.
-3.  Edit the R file contained in the git repository and place your
-    solution in that file (please do not rename the file).
-4.  Commit your completed R file into YOUR git repository and push your
-    git branch to the GitHub repository under your account.
-5.  Submit to Coursera the URL to your GitHub repository that contains
-    the completed R code for the assignment.
+matrix_data = []
+for sample_name, accuracies in results.items():
+    row = [accuracies.get(model, None) for model in models.keys()]
+    matrix_data.append(row)
 
-### Grading
+results_matrix = pd.DataFrame(
+    matrix_data,
+    index=results.keys(),
+    columns=models.keys()
+)
 
-This assignment will be graded via peer assessment.
+print("Accuracy Matrix (Assignment Format):")
+print(results_matrix)
+```
+# Step 10: Train and evaluate various models
+```
+
+from sklearn.metrics import accuracy_score
+
+for model_name, model in models.items():
+    results[model_name] = []
+    for i, sample in enumerate(samples):
+
+        X_sample = sample.drop('Class', axis=1)
+        y_sample = sample['Class']
+
+        X_train, X_test, y_train, y_test = train_test_split(X_sample, y_sample, test_size=0.2, random_state=42)
+
+        model.fit(X_train, y_train)
+
+        predictions = model.predict(X_test)
+        accuracy = accuracy_score(y_test, predictions)
+        results[model_name].append(accuracy)
+
+
+results_df = pd.DataFrame(results, index=["Sample1", "Sample2", "Sample3", "Sample4", "Sample5"])
+print(results_df)
+
+results_df.to_csv("model_accuracies.csv")
+```
+# Step 11: Storing the data in .csv file and finding the best combinations
+```
+best_combinations = results_matrix.idxmax()
+print("Best Sampling Technique for Each Model:")
+print(best_combinations)
+
+results_matrix.to_csv("results_matrix_assignment_exact.csv")
+```
